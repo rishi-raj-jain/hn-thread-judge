@@ -305,23 +305,56 @@ export async function corpusSize(): Promise<number | null> {
   }
 }
 
-export async function getThread(id: number) {
+export type ThreadTopComment = ThreadItem & { hasReplies: boolean }
+export type ThreadHead = { root: ThreadItem | null; topLevel: ThreadTopComment[]; ms: number }
+
+/**
+ * Phase 1 of the item page: the root item and its direct (top-level) comments,
+ * in one round trip. Small and fast, so the shell paints before the deeper
+ * replies stream in. `hasReplies` comes from each comment's `kids` array, so the
+ * page only opens a streaming boundary under comments that actually have replies.
+ */
+export async function getThreadHead(id: number): Promise<ThreadHead> {
   const { rows, ms } = await timed(
     async () =>
       (await sql.query(
-        `WITH RECURSIVE thread AS (
-           SELECT ${THREAD_COLUMNS} FROM items WHERE id = $1
-           UNION ALL
-           SELECT ${THREAD_COLUMNS.split(', ')
-             .map((c) => `i.${c}`)
-             .join(', ')}
-           FROM items i INNER JOIN thread t ON i.parent = t.id
-         )
-         SELECT * FROM thread`,
+        `SELECT 0 AS depth, ${THREAD_COLUMNS}, false AS has_replies FROM items WHERE id = $1
+         UNION ALL
+         SELECT 1 AS depth, ${THREAD_COLUMNS}, (kids IS NOT NULL AND array_length(kids, 1) > 0) AS has_replies
+           FROM items WHERE parent = $1
+         ORDER BY depth, time`,
         [id],
       )) as Row[],
   )
-  return { rows: rows.map(asThread), ms }
+  let root: ThreadItem | null = null
+  const topLevel: ThreadTopComment[] = []
+  for (const row of rows) {
+    if (asInt(row.depth) === 0) root = asThread(row)
+    else topLevel.push({ ...asThread(row), hasReplies: Boolean(row.has_replies) })
+  }
+  return { root, topLevel, ms }
+}
+
+/**
+ * Phase 2: every reply below the top level (depth >= 2), fetched in one
+ * recursive walk over `items_parent_idx` and streamed in after the head paints.
+ * The page groups these by parent and hangs each subtree under its top-level
+ * comment.
+ */
+export async function getThreadReplies(id: number): Promise<ThreadItem[]> {
+  const rows = (await sql.query(
+    `WITH RECURSIVE sub AS (
+       SELECT ${THREAD_COLUMNS}, 1 AS depth FROM items WHERE parent = $1
+       UNION ALL
+       SELECT ${THREAD_COLUMNS.split(', ')
+         .map((c) => `i.${c}`)
+         .join(', ')}, s.depth + 1
+       FROM items i INNER JOIN sub s ON i.parent = s.id
+     )
+     SELECT ${THREAD_COLUMNS} FROM sub WHERE depth > 1 ORDER BY time`,
+    [id],
+  )) as Row[]
+  return rows.map(asThread)
 }
 
 export type JudgedThread = {

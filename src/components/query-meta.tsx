@@ -1,6 +1,7 @@
 import type { MatchCount } from '@/lib/queries'
 import { formatMatches } from '@/lib/search-params'
 import { Suspense } from 'react'
+import { NeonLogo } from '@/components/logos'
 
 /** Resolves the streamed count. Rendered inside a Suspense boundary so the
  * result list paints before the (sometimes slower) exact count arrives. */
@@ -38,6 +39,9 @@ export function QueryMeta({ ms, error, countPromise }: { ms: number; error?: str
       ) : null}
       {ms.toFixed(0)} ms
       <Sep />
+      <a href="https://neon.com" target="_blank" className="border-b visited:text-(--hn-ink)">
+        <NeonLogo className="inline-block h-[1.15em] w-auto align-[-0.2em] text-(--hn-ink)" /> Postgres
+      </a>
     </p>
   )
 }

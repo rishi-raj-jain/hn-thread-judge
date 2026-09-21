@@ -8,6 +8,7 @@ import { countMatches, getJudgedThreads, getTopThreads, MIN_COMMENTS, searchItem
 import { PAGE_SIZE, pageNumber, parseSearchParams, stringifySearchParams, type SearchFilters } from '@/lib/search-params'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { NeonLogo } from '@/components/logos'
 
 function hrefWith(filters: SearchFilters, patch: Partial<SearchFilters>): string {
   const qs = stringifySearchParams({ ...filters, ...patch })
@@ -78,7 +79,10 @@ async function Results({ filters, page }: { filters: SearchFilters; page: number
         <QueryMeta ms={ms} error={error} countPromise={countPromise} />
       ) : (
         <p className="mb-3 text-(length:--text-sm) text-(--hn-gray)">
-          Most-discussed threads first · only threads with {MIN_COMMENTS}+ comments · {ms.toFixed(0)} ms
+          Most-discussed threads first · only threads with {MIN_COMMENTS}+ comments · {ms.toFixed(0)} ms ·{' '}
+          <a href="https://neon.com" target="_blank" className="border-b visited:text-(--hn-ink)">
+            <NeonLogo className="inline-block h-[1.15em] w-auto align-[-0.2em] text-(--hn-ink)" /> Postgres
+          </a>
         </p>
       )}
 

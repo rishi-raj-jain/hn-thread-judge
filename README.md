@@ -75,7 +75,7 @@ Set `DATABASE_URL_UNPOOLED` to the direct Neon connection string and `TYPESAFE_A
 | -------------------------------- | ----------------------------------------------------------------------- |
 | `npm run dev` / `build`          | Next.js dev server / production build                                   |
 | `npm run typecheck`              | `tsc`                                                                   |
-| `npm run format`                 | Prettier over the repo                                                   |
+| `npm run format`                 | Prettier over the repo                                                  |
 | `npm run db:generate`            | Regenerate Drizzle migrations from `src/db/schema.ts`                   |
 | `npm run db:migrate`             | Apply extensions, the `items` table, and the judge/rate-limit additions |
 | `npm run db:seed`                | Bulk-load the HN dump (add `--bm25` to build search indexes)            |
