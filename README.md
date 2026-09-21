@@ -4,16 +4,18 @@ The most-discussed threads on Hacker News (only threads with 6+ comments, most c
 
 ## Thread Judge (Jev)
 
-`/judged` reads the 20 biggest threads in the corpus and gives each one a single verdict, produced by [Jev](https://typesafe.ai) (TypeSafe System One). Every comment (up to 400 per thread, top-level reactions first) is sent to Jev on its own and comes back with a _typed_ judgment: a categorical stance (`support` / `critical` / `neutral`), an ordinal substance score, a 0..1 quotability scalar, and whether it raises an open question. Jev never writes prose, so the verdict card is assembled deterministically from those numbers, and every quote on it is a real comment Jev flagged. Open [`/item/{id}`](src/app/item/[id]/page.tsx) for a scored thread to see the card plus a per-comment stance badge on each judged comment.
+Judged threads render inline on the home page as a Jev verdict strip, and a "The finding" card in the right column is computed live over every judged thread. Each verdict is produced by [Jev](https://typesafe.ai) (TypeSafe System One): every comment (up to 400 per thread, top-level reactions first) is sent to Jev on its own and comes back with a _typed_ judgment: a categorical stance (`support` / `critical` / `neutral`), an ordinal substance score, a 0..1 quotability scalar, and whether it raises an open question. Jev never writes prose, so the verdict card is assembled deterministically from those numbers, and every quote on it is a real comment Jev flagged. Open [`/item/{id}`](src/app/item/[id]/page.tsx) for a judged thread to see the card plus a per-comment stance badge on each judged comment.
 
-Scoring is additive. The judgments go into nullable `jev_*` columns on `items` (per comment) and a `jev_verdict` jsonb blob on the story row. No existing column or value is touched, and the columns are never part of the live sync. Run it with:
+Any unjudged thread can be judged on demand: the button on the thread calls [`POST /api/judge/:id`](src/app/api/judge/[id]/route.ts), which scores it with Jev and persists the verdict. New judges are rate limited to `DAILY_JUDGE_LIMIT` (10) per IP per day, tracked in a `judge_rate_limit` row in the same database (see [`rate-limit.ts`](src/lib/rate-limit.ts)). Already-judged threads return the stored verdict without spending quota, and a failed judge is refunded. The request-path pipeline is [`src/lib/judge.ts`](src/lib/judge.ts).
+
+Scoring is additive. The judgments go into nullable `jev_*` columns on `items` (per comment) and a `jev_verdict` jsonb blob on the story row. No existing column or value is touched. To score threads in bulk offline instead of on demand:
 
 ```bash
 npm run db:judge            # score threads not yet scored
 npm run db:judge -- --force # re-score all of them
 ```
 
-Set `TYPESAFE_API_KEY` in `.env` first. The pipeline is in [`scripts/judge-threads.ts`](scripts/judge-threads.ts). The constants `TOP_N`, `CAP` and `CONCURRENCY` at the top tune coverage and speed.
+Set `TYPESAFE_API_KEY` in `.env` first. The batch pipeline is in [`scripts/judge-threads.ts`](scripts/judge-threads.ts). The constants `TOP_N`, `CAP` and `CONCURRENCY` at the top tune coverage and speed.
 
 ## Design notes
 
@@ -59,6 +61,8 @@ Set `DATABASE_URL_UNPOOLED` to the direct Neon connection string and `TYPESAFE_A
 
    Useful seed flags: `--streams=8`, `--batch=20000`, `--limit=100000` (small sample), `--skip-download`, `--skip-unzip`.
 
+   Getting Hacker News into the database, and keeping it current, is handled by the companion project [`rishi-raj-jain/hn-search`](https://github.com/rishi-raj-jain/hn-search): the ClickHouse seed, the two-phase [`db:backfill`](scripts/backfill.ts) that closes the late-2021-to-now gap from the [HN Firebase API](https://github.com/HackerNews/API), and an hourly Vercel cron sync that upserts the newest items. This repo shares the same `items` schema and adds the Jev judging layer on top.
+
 3. **Run it.**
 
    ```bash
@@ -70,25 +74,11 @@ Set `DATABASE_URL_UNPOOLED` to the direct Neon connection string and `TYPESAFE_A
 | Command                          | Purpose                                                                 |
 | -------------------------------- | ----------------------------------------------------------------------- |
 | `npm run dev` / `build`          | Next.js dev server / production build                                   |
-| `npm run typecheck`              | `tsc --noEmit`                                                          |
+| `npm run typecheck`              | `tsc`                                                                   |
+| `npm run format`                 | Prettier over the repo                                                   |
 | `npm run db:generate`            | Regenerate Drizzle migrations from `src/db/schema.ts`                   |
 | `npm run db:migrate`             | Apply extensions, the `items` table, and the judge/rate-limit additions |
 | `npm run db:seed`                | Bulk-load the HN dump (add `--bm25` to build search indexes)            |
 | `npm run db:backfill`            | Two-phase (fetch to disk, then load) backfill of the 2021-to-now gap    |
+| `npm run db:judge`               | Batch-score the top threads with Jev (add `--force` to re-score)        |
 | `tsx scripts/inspect-indexes.ts` | Dump table columns, extensions, and index sizes                         |
-
-## Backfilling history
-
-The seed dump stops around late 2021 (item id ~28.7M) while Hacker News is past 49M. To close that gap, run [`scripts/backfill.ts`](scripts/backfill.ts) (`npm run db:backfill`), which pulls from the official [HN Firebase API](https://github.com/HackerNews/API). It is split into two phases so a crash never discards downloaded data:
-
-```bash
-# 1. Download the whole range to local gzipped, COPY-ready shards (resumable).
-npm run db:backfill -- --phase=fetch
-
-# 2a. Load keeping search online (staging + ON CONFLICT, every index maintained).
-npm run db:backfill -- --phase=load --mode=online
-
-# 2b. Or load fast in a maintenance window: drop all 12 secondary indexes,
-#     bulk-load with only the primary key, then rebuild the indexes once.
-npm run db:backfill -- --phase=load --mode=rebuild --workers=6
-```
