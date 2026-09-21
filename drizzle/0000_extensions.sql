@@ -1,0 +1,3 @@
+-- Custom: Drizzle cannot CREATE EXTENSION.
+CREATE EXTENSION IF NOT EXISTS lakebase_text;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;

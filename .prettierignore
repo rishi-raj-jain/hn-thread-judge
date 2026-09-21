@@ -1,0 +1,13 @@
+# Generated
+.next/
+next-env.d.ts
+*.tsbuildinfo
+package-lock.json
+drizzle/meta/
+
+# Vendored / local
+node_modules/
+data/
+.vercel
+.neon
+.DS_Store

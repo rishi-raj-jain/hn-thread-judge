@@ -1,0 +1,56 @@
+/* Hacker News look: beige page, Verdana, black links that gray on hover. */
+@import 'tailwindcss';
+@import '../tokens.css';
+
+html,
+body {
+  overflow-x: clip;
+  background: var(--hn-beige);
+  color: var(--hn-ink);
+}
+
+body {
+  font-family: var(--font-hn);
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+
+a {
+  color: var(--hn-link);
+  text-decoration: none;
+}
+
+a:visited {
+  color: var(--hn-visited);
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* HN itself does not underline, so keep the masthead crisp regardless of visited state. */
+.hn-masthead a,
+.hn-masthead a:visited {
+  color: var(--hn-on-orange);
+}
+
+input,
+select,
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--hn-orange);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
